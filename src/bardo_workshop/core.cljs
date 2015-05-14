@@ -22,6 +22,8 @@
   (:require-macros [cljs.core.async.macros :refer [go]]
                    [cljs.core.match.macros :refer [match]]))
 
+(enable-console-print!)
+
 ;; what is this talk about?
 
 ;; Bardo is a library that can be used for animation...but this talk isn't really about animation.
@@ -406,12 +408,12 @@
               (close! out))))))
     out))
 
-(enable-console-print!)
-
-(let [anim (animation-chan 10000)
-      intrpl (interpolate 0 5)]
-  (go
-    (loop []
-      (when-let [t (<! anim)]
-        (print (intrpl t))
-        (recur)))))
+(comment
+  (let [anim (animation-chan 10000)
+        intrpl (interpolate 0 5)]
+    (go
+      (loop []
+        (when-let [t (<! anim)]
+          (print (intrpl t))
+          (recur)))))
+  )
