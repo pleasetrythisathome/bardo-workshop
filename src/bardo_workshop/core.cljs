@@ -12,7 +12,7 @@
   (:require [bardo.ease :as e]
             [bardo.interpolate :as i]
             [bardo.transition :as t]
-            [cljs.core.async :as async :refer [<! chan timeout]]
+            [cljs.core.async :as async :refer [<! chan timeout put! close!]]
             [cljs.core.match]
             [cljs.reader :as edn]
             [cljs-time.core :as time]
@@ -286,6 +286,7 @@
   number
   (fresh [x]
     0))
+
 (extend-protocol IInterpolate
   nil
   (interpolate [_ end]
@@ -364,3 +365,51 @@
 
 ((interpolate {:a 1} {:b 2}) 0.5)
 ;;=> {:a 0.5, :b 1}
+
+;; what if we want values over time?
+
+;; let's define a function that runs on request animation frame
+
+(defn request-animation-frame
+  [f]
+  (if-let [native (let [vendors ["" "ms" "moz" "webkit" "o"]]
+                    (->> vendors
+                         (map #(aget js/window (str % "requestAnimationFrame")))
+                         (filter identity)
+                         (first)))]
+    (.call native js/window f)))
+
+(defn request-anim-chan
+  []
+  (let [out (chan)]
+    (request-animation-frame (fn [t] (put! out (time/now))))
+    out))
+
+(defn animation-chan
+  [duration]
+  (let [out (chan)
+        start (time/now)
+        end (+ start duration)]
+    (go
+      (loop []
+        (let [t (-> (<! (request-anim-chan))
+                    (- start)
+                    (/ duration))]
+          (if (<= t 1)
+            (do
+              (put! out t)
+              (recur))
+            (do
+              (put! out 1)
+              (close! out))))))
+    out))
+
+(enable-console-print!)
+
+(let [anim (animation-chan 10000)
+      intrpl (interpolate 0 5)]
+  (go
+    (loop []
+      (when-let [t (<! anim)]
+        (print (intrpl t))
+        (recur)))))
