@@ -7,6 +7,8 @@
 
 ;; what are we talking about?
 ;; https://github.com/pleasetrythisathome/bardo
+;; workshop repo
+;; https://github.com/pleasetrythisathome/bardo-workshop
 
 (ns bardo-workshop.core
   (:require [bardo.ease :as e]
