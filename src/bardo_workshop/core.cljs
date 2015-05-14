@@ -279,6 +279,13 @@
 
 ;; this might also be a good time to support nil values. let's define a protocol let represent an interpolatable nil.
 
+(defprotocol IFresh
+  (fresh [x]))
+
+(extend-protocol IFresh
+  number
+  (fresh [x]
+    0))
 (extend-protocol IInterpolate
   nil
   (interpolate [_ end]
