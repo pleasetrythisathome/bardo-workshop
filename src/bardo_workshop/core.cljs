@@ -13,8 +13,12 @@
             [bardo.interpolate :as i]
             [bardo.transition :as t]
             [cljs.core.async :as async :refer [<! chan timeout]]
-            [cljs-time.core :as time])
-  (:require-macros [cljs.core.async.macros :refer [go]]))
+            [cljs.core.match]
+            [cljs.reader :as edn]
+            [cljs-time.core :as time]
+            [clojure.set :as set])
+  (:require-macros [cljs.core.async.macros :refer [go]]
+                   [cljs.core.match.macros :refer [match]]))
 
 ;; what is this talk about?
 
@@ -194,7 +198,6 @@
 ;; we can even define some helper functions for higher order easing functions
 
 (defn wrap
-  "useful for wrapping easers in other easers, especially in theading macros"
   [f ease]
   (fn [t]
     (f (ease t))))
@@ -211,3 +214,146 @@
     (map (range 11)))
 
 ;; bardo.ease defines a variety of easing functions and helpers
+
+;; what if we want to combine interpolators together? we can write functions for that too
+
+(defn mix
+  [start end]
+  (fn [t]
+    ((interpolate (start t) (end t)) t)))
+
+(-> (interpolate 0 5)
+    (mix (interpolate 0 25))
+    (shift 0 10)
+    (map (range 11)))
+;; => (0 0.7 1.8 3.3 5.2 7.5 10.2 13.299999999999999 16.8 20.7 25)
+
+;; how about with a curve?
+
+(-> (interpolate 0 5)
+    (mix (interpolate 0 25))
+    (wrap quad)
+    (shift 0 10)
+    (map (range 11)))
+;; =>
+;; (0
+;;  0.05200000000000001
+;;  0.23200000000000004
+;;  0.612
+;;  1.3120000000000003
+;;  2.5
+;;  4.3919999999999995
+;;  7.251999999999999
+;;  11.392000000000005
+;;  17.172
+;;  25)
+
+;; what if we want to support different types of values?
+
+;; we could write another intepolation function for strings
+
+;; here's a silly one that assuming strings represent numbers. probably not a safe assumption.
+
+(defn interpolate-string
+  [start end]
+  (comp str (apply interpolate (map edn/read-string [start end]))))
+
+((interpolate-string "0" "5") 0.5)
+
+;; but there's something better. let's use protocols!
+
+(defprotocol IInterpolate
+  (interpolate [start end]))
+
+(extend-protocol IInterpolate
+  number
+  (interpolate [start end]
+    (fn [t]
+      (->> start
+           (- end)
+           (* t)
+           (+ start)))))
+
+((interpolate 0 5) 0.5)
+;; => 2.5
+
+;; this might also be a good time to support nil values. let's define a protocol let represent an interpolatable nil.
+
+(extend-protocol IInterpolate
+  nil
+  (interpolate [_ end]
+    (interpolate (fresh end) end))
+  number
+  (interpolate [start end]
+    (fn [t]
+      (->> start
+           (- (if (nil? end) (fresh start) end))
+           (* t)
+           (+ start)))))
+
+((interpolate nil 5) 0.5)
+;;=> 2.5
+((interpolate 2 nil) 0.5)
+;;=> 1
+
+;; let's' support lists!
+
+(extend-protocol IFresh
+  PersistentVector
+  (fresh [x]
+    []))
+
+(extend-protocol IInterpolate
+  PersistentVector
+  (interpolate [start end]
+    (let [intrpls (map interpolate start end)]
+      (fn [t]
+        (mapv #(% t) intrpls)))))
+
+((interpolate [0 5] [5 10]) 0.5)
+;; => (2.5 7.5)
+
+;; what if the lists are different sizes?
+
+;; we need to redefine our list interpolator to interate over the larger list
+
+(extend-protocol IInterpolate
+  PersistentVector
+  (interpolate [start end]
+    (let [intrpls (for [k (range (Math/max (count start)
+                                          (count end)))]
+                   (->> [(nth start k nil) (nth end k nil)]
+                        (apply interpolate)))]
+      (fn [t]
+        (mapv #(% t) intrpls)))))
+
+((interpolate [0 nil] [2 1]) 0.5)
+;; => (1 0.5)
+
+;; how about maps?
+
+(extend-protocol IFresh
+  PersistentHashMap
+  (fresh [x]
+    {}))
+
+(extend-protocol IInterpolate
+  PersistentArrayMap
+  (interpolate [start end]
+    (let [intrpls (for [k (->> [start end]
+                              (map keys)
+                              (map set)
+                              (apply set/union))]
+                   [k (->> [start end]
+                           (map k)
+                           (apply interpolate))])]
+      (fn [t]
+        (->> (for [[k intrpl] intrpls]
+               [k (intrpl t)])
+             (into {}))))))
+
+((interpolate {:a 1} {:a 2}) 0.5)
+;;=> {:a 1.5}
+
+((interpolate {:a 1} {:b 2}) 0.5)
+;;=> {:a 0.5, :b 1}

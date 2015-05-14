@@ -4,15 +4,13 @@
                  '[[org.clojure/clojure "1.7.0-beta2"]
                    [org.clojure/clojurescript "0.0-3123"]
                    [org.clojure/core.async "0.1.346.0-17112a-alpha"]
-                   [bardo "0.1.1-SNAPSHOT"]
-                   [clj-time "0.8.0"]
-                   [com.andrewmcveigh/cljs-time "0.2.4"]
-                   [com.cemerick/piggieback "0.1.5"]]
+                   [bardo "0.1.1-SNAPSHOT"]]
                  (mapv #(conj % :scope "test")
                        '[[adzerk/boot-cljs "0.0-2814-4"]
                          [adzerk/boot-cljs-repl "0.1.10-SNAPSHOT"]
                          [deraen/boot-cljx "0.2.0"]
-                         [pandeiro/boot-http "0.6.3-SNAPSHOT"]])))
+                         [pandeiro/boot-http "0.6.3-SNAPSHOT"]
+                         [com.cemerick/piggieback "0.1.5"]])))
  :source-paths #{"src"}
  :resource-paths #(conj % "src" "resources"))
 
